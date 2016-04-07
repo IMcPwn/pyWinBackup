@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 # pyWinBackup.py by IMcPwn
-# Copyright (C) 2016 IMcPwn
+# Copyright (C) 2016 Carleton Stuberg
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +19,7 @@
 
 import os
 import time
+from time import gmtime, strftime
 import base64
 import subprocess
 import sys
@@ -38,14 +40,14 @@ def copy_files():
 	      curr_file = x
 	      if os.path.isfile(curr_file):
 	        print("[*] Copying " + curr_file + " to " + destination)
-	        copy = subprocess.Popen("xcopy \"{0}\"  \"{1}\\{2}\\\" /E /C /Q /R /Y /Z /I".format(curr_file, destination, backup_name), shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, startupinfo=startupinfo).wait()
+	        subprocess.Popen("xcopy \"{0}\"  \"{1}\\{2}\\\" /E /C /Q /R /Y /Z /I".format(curr_file, destination, backup_name), shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, startupinfo=startupinfo).wait()
 	      else:
 	        print("[X] Error. " + curr_file + " does not exist. Skipping it.")	
       else:
 	    curr_file = i
 	    if os.path.isfile(curr_file):
 	      print("[*] Copying " + curr_file + " to " + destination)
-	      copy = subprocess.Popen("xcopy \"{0}\"  \"{1}\\{2}\\\" /E /C /Q /R /Y /Z /I".format(curr_file, destination, backup_name), shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, startupinfo=startupinfo).wait()
+	      subprocess.Popen("xcopy \"{0}\"  \"{1}\\{2}\\\" /E /C /Q /R /Y /Z /I".format(curr_file, destination, backup_name), shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, startupinfo=startupinfo).wait()
 	    else:
 	      print("[X] Error. " + curr_file + " does not exist. Skipping it.")
   except Exception as e:
@@ -98,12 +100,30 @@ def disconnect():
 	pass
 
 def findpatt(pattern, path):
-  result = []
-  for root, dirs, files in os.walk(path):
-      for name in files:
-          if fnmatch.fnmatch(name, pattern):
-              result.append(os.path.join(root, name))
-  return result
+  try:
+    result = []
+    for root, dirs, files in os.walk(path):
+        for name in files:
+            if fnmatch.fnmatch(name, pattern):
+                result.append(os.path.join(root, name))
+    return result
+  except Exception as e:
+    #print_error(e)
+    pass
+  
+def makeTimeStamp(done):
+  try:
+    currDate = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+    with open(destination + "\\" + backup_name + "\\backup-status.txt", 'a') as outfile:
+      if done:
+	    print("[*] Backup completed on: " + currDate)
+	    outfile.write("\nBackup completed on: " + currDate)
+      else:
+	    print("[*] Backup started on: " + currDate)
+	    outfile.write("\nBackup started on: " + currDate)
+  except Exception as e:
+    #print_error(e)
+    pass
 
 
 if __name__ == "__main__":
@@ -111,11 +131,14 @@ if __name__ == "__main__":
     if os.name != 'nt':
        print("This program only works on windows.")
        exit_msg()
+	   
     homepath = os.path.expanduser('~')
     # There's probably a better way to find the user's username
     user = os.getenv('USERNAME')
   
     files_to_copy = []
+	
+    isBackupFinished = False
 
 ### STUFF TO CHANGE ###
     # Files to find (and copy) (star is ok)
@@ -124,17 +147,18 @@ if __name__ == "__main__":
     drive_to_search = homepath
     # Directories inside home directory to copy
     dirs_to_copy = ["Desktop", "Documents", "Favorites", "My Documents"]
-    # Backup folder name (default USERNAME-DAY-MONTH-YEAR)
     backup_name = str(user + "-" + time.strftime("%d-%m-%Y"))
     # DO NOT END DESTINATION WTIH \\
-    destination = "\\\\windows-share\\directory"
-    # Windows share username
+    # One backslash in the path needs to be two backslashes.
+    destination = "\\\\windows-share\\backup-folder"
     username="backup-user"
-    # Base64 encoded password for Windows Share. Even though this is insecure I compile my script with pyinstaller so most people can't recover the password.
+    # I compile my script with pyinstaller so most people can't recover the password.
+    # THIS IS STILL ENTIRELY INSECURE. 
+    # DO NOT PUT ANY SENSITIVE CREDENTIALS IF THIS SCRIPT IS GOING ON PRODUCTION COMPUTERS
     p="cGFzc3dvcmQ="
 ### END STUFF TO CHANGE ###
 
-    # Hide window for things opened with subprocess.Popen
+    # Hide window for things opened with subprocess
     startupinfo = subprocess.STARTUPINFO()
     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
   
@@ -145,10 +169,19 @@ if __name__ == "__main__":
   
     print("[*] Connecting to " + destination)
     connect()
-  
+	
+    if not os.path.exists(destination + "\\" + backup_name):
+      os.mkdir(destination + "\\" + backup_name)
+	
+    isBackupFinished = False
+    makeTimeStamp(isBackupFinished)
+	
     find_files()
     copy_files()
     copy_dirs()
+	
+    isBackupFinished = True
+    makeTimeStamp(isBackupFinished)
   
     print("[*] Disconnecting from " + destination)
     disconnect()
